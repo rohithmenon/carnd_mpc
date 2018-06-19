@@ -43,6 +43,13 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+Eigen::Vector2d rotate(Eigen::Vector2d point, Eigen::Vector2d origin, double rad) {
+  Eigen::Matrix2d rot;
+  rot << cos(rad), sin(rad),
+         -sin(rad), cos(rad);
+  return rot * (point - origin);
+}
+
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -94,58 +101,69 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          Eigen::Vector2d origin;
+          origin << px, py;
+
           size_t num_waypoints = ptsx_vec.size();
           Eigen::VectorXd ptsx(num_waypoints);
           Eigen::VectorXd ptsy(num_waypoints);
           for (int i = 0; i < num_waypoints; ++i) {
-              ptsx(i) = ptsx_vec[i];
-              ptsy(i) = ptsy_vec[i];
+              Eigen::Vector2d pt;
+              pt << ptsx_vec[i], ptsy_vec[i];
+              Eigen::Vector2d rotated = rotate(pt, origin, psi);
+              ptsx(i) = rotated[0];
+              ptsy(i) = rotated[1];
           }
 
           // The polynomial is fitted to a straight line so a polynomial with
           // order 1 is sufficient.
           auto coeffs = polyfit(ptsx, ptsy, 3);
 
-          double cte = polyeval(coeffs, px) - py;
+          double cte = polyeval(coeffs, 0);
           // Due to the sign starting at 0, the orientation error is -f'(x).
           // derivative of coeffs[0] + coeffs[1] * x -> coeffs[1]
-          double epsi = psi - atan(coeffs[1] + 2 * coeffs[2] * px + 3 * coeffs[3] * px * px);
+          double epsi = -atan(coeffs[1]);
 
           Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
+          state << 0, 0, 0, v, cte, epsi;
 
           vector<double> solution = mpc.Solve(state, coeffs);
 
-          double steer_value = solution[6];
-          double throttle_value = solution[7];
+          double steer_value = solution[0];
+          double throttle_value = solution[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value / steering_normalizer;
+          msgJson["steering_angle"] = steer_value / -steering_normalizer;
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
-          for (int i = 0; i < num_waypoints; ++i) {
-              Eigen::VectorXd new_state(6);
-              new_state << solution[0], solution[1], solution[2], solution[3], solution[4], solution[5];
-              solution = mpc.Solve(state, coeffs);
-              mpc_x_vals.push_back(solution[0]);
-              mpc_y_vals.push_back(solution[1]);
-          }
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+
+          for (int i = 2; i < solution.size(); i+=2) {
+              mpc_x_vals.push_back(solution[i]);
+              mpc_y_vals.push_back(solution[i+1]);
+          }
+          //std::reverse(mpc_x_vals.begin(), mpc_x_vals.end());
+          //std::reverse(mpc_y_vals.begin(), mpc_y_vals.end());
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals = ptsx_vec;
-          vector<double> next_y_vals = ptsy_vec;
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
+          
+          for (int i = 0; i < 100; i+=4) {
+              next_x_vals.push_back(i);
+              next_y_vals.push_back(polyeval(coeffs, i));
+          }
+
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line

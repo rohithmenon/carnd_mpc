@@ -15,6 +15,9 @@ class MPC {
   // Solve the model given an initial state and polynomial coefficients.
   // Return the first actuatotions.
   vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
+
+  double prev_throttle = 0.0;
+  double prev_steer = 0.0;
 };
 
 #endif /* MPC_H */
