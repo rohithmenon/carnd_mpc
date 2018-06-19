@@ -52,27 +52,32 @@ class FG_eval {
       // Any additions to the cost should be added to `fg[0]`.
       fg[0] = 0;
 
-      // The part of the cost based on the reference state.
+      // Cost for CTE and ECPI.
       for (int i = 0; i < N; i++) {
           fg[0] += CppAD::pow(vars[cte_start + i], 2);
           fg[0] += CppAD::pow(vars[epsi_start + i], 2);
           fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
       }
 
+      // Cost for large values of actuations.
       for (int i = 0; i < N - 1; i++) {
           auto delta_val = CppAD::pow(vars[delta_start + i], 2);
           fg[0] += delta_val;
           fg[0] += CppAD::pow(vars[a_start + i], 2);
+          // When steering value is high, apply a penalty for high speed.
           auto steer_factor = 1.0 / (1.0 + CppAD::exp(-25 * (delta_val - 0.05)));
           fg[0] += CppAD::pow(steer_factor * vars[v_start+i], 2);
       }
 
+      // Cost for high difference in consecutive values
       for (int i = 0; i < N - 2; i++) {
           fg[0] += 2000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
           fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
       }
+
+      // Cost for high difference in previous steering actuation value and the first value of predicted
+      // steering actuation.
       fg[0] += 2000 * CppAD::pow(vars[delta_start] - prev_steer, 2);
-      //fg[0] += 100 * CppAD::pow(vars[a_start] - prev_throttle, 2);
       //
       // Setup Constraints100
       //
@@ -143,6 +148,7 @@ class FG_eval {
 MPC::MPC() {}
 MPC::~MPC() {}
 
+// Calculate the next state after dt seconds.
 Eigen::VectorXd StateAt(const Eigen::VectorXd& state, double steer, double throttle, double dt) {
     double x = state[0];
     double y = state[1];
@@ -164,6 +170,7 @@ Eigen::VectorXd StateAt(const Eigen::VectorXd& state, double steer, double throt
 vector<double> MPC::Solve(Eigen::VectorXd cur_state, Eigen::VectorXd coeffs) {
     typedef CPPAD_TESTVECTOR(double) Dvector;
 
+    // Compute the state after latency seconds. 0.1 seconds = 100millis
     Eigen::VectorXd state = StateAt(cur_state, prev_steer, prev_throttle, 0.1);
 
     double x = state[0];
@@ -281,5 +288,4 @@ vector<double> MPC::Solve(Eigen::VectorXd cur_state, Eigen::VectorXd coeffs) {
         result.push_back(solution.x[y_start + i + 1]);
     }
     return result;
-
 }

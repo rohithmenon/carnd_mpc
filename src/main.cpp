@@ -43,6 +43,7 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+// Rotate the point by rad radians around the origin
 Eigen::Vector2d rotate(Eigen::Vector2d point, Eigen::Vector2d origin, double rad) {
   Eigen::Matrix2d rot;
   rot << cos(rad), sin(rad),
@@ -107,6 +108,8 @@ int main() {
           size_t num_waypoints = ptsx_vec.size();
           Eigen::VectorXd ptsx(num_waypoints);
           Eigen::VectorXd ptsy(num_waypoints);
+
+          // Rotate the way points to car co-ordinates
           for (int i = 0; i < num_waypoints; ++i) {
               Eigen::Vector2d pt;
               pt << ptsx_vec[i], ptsy_vec[i];
@@ -115,13 +118,13 @@ int main() {
               ptsy(i) = rotated[1];
           }
 
-          // The polynomial is fitted to a straight line so a polynomial with
-          // order 1 is sufficient.
+          // Fit a 3 degree polynomial
           auto coeffs = polyfit(ptsx, ptsy, 3);
 
+          // Calculate cross-track-error.
           double cte = polyeval(coeffs, 0);
-          // Due to the sign starting at 0, the orientation error is -f'(x).
-          // derivative of coeffs[0] + coeffs[1] * x -> coeffs[1]
+
+          // Calculate heading error.
           double epsi = -atan(coeffs[1]);
 
           Eigen::VectorXd state(6);
@@ -144,13 +147,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
           for (int i = 2; i < solution.size(); i+=2) {
               mpc_x_vals.push_back(solution[i]);
               mpc_y_vals.push_back(solution[i+1]);
           }
-          //std::reverse(mpc_x_vals.begin(), mpc_x_vals.end());
-          //std::reverse(mpc_y_vals.begin(), mpc_y_vals.end());
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -164,14 +164,11 @@ int main() {
               next_y_vals.push_back(polyeval(coeffs, i));
           }
 
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-
-
+          
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           // Latency
