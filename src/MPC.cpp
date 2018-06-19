@@ -21,7 +21,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Reference velocity
-double ref_v = 80;
+double ref_v = 90;
 
 // State variables and actuator variables start index
 size_t x_start = 0;
@@ -65,7 +65,7 @@ class FG_eval {
           fg[0] += delta_val;
           fg[0] += CppAD::pow(vars[a_start + i], 2);
           // When steering value is high, apply a penalty for high speed.
-          auto steer_factor = 1.0 / (1.0 + CppAD::exp(-25 * (delta_val - 0.05)));
+          auto steer_factor = 1.0 / (1.0 + CppAD::exp(-25 * (delta_val - 0.06)));
           fg[0] += CppAD::pow(steer_factor * vars[v_start+i], 2);
       }
 
@@ -77,7 +77,7 @@ class FG_eval {
 
       // Cost for high difference in previous steering actuation value and the first value of predicted
       // steering actuation.
-      fg[0] += 2000 * CppAD::pow(vars[delta_start] - prev_steer, 2);
+      fg[0] += 100 * CppAD::pow(vars[delta_start] - prev_steer, 2);
       //
       // Setup Constraints100
       //
